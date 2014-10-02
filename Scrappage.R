@@ -257,7 +257,7 @@ ga.rsn <- cr.gr.list(ga.mo.ly,ga.yr.ly,ga.mo.ty,ga.yr.ty)
 #CATEGORY DATA
 ######################################
 
-#month totals last year and this year
+#month & year-to-date totals, last year and this year
 or.mo.ty.cat <- last.mo(yr,160000,gr.or,n=2)
 or.mo.ly.cat <- last.mo(yr-1,160000,gr.or,n=2)
 or.yr.ty.cat <- year.data(yr,160000,gr.or,b=2)
@@ -278,6 +278,22 @@ ca.cat <- cr.gr.list(ca.mo.ly.cat,ca.yr.ly.cat,ca.mo.ty.cat,ca.yr.ty.cat,b=2)
 ga.cat <- cr.gr.list(ga.mo.ly.cat,ga.yr.ly.cat,ga.mo.ty.cat,ga.yr.ty.cat,b=2)
 
 ########################################
+# ALL LOCATIONS TOTALS
+########################################
+
+all.mo.ly.rsn <- last.mo(yr-1)
+all.mo.ty.rsn <- last.mo(yr)
+all.mo.ly.cat <- last.mo(yr-1,n=2)
+all.mo.ty.cat <- last.mo(yr,n=2)
+all.ly.rsn <- year.data(yr-1)
+all.ty.rsn <- year.data(yr)
+all.ly.cat <- year.data(yr-1,b=2)
+all.ty.cat <- year.data(yr,b=2)
+
+all.rsn <- cr.gr.list(all.mo.ly.rsn,all.ly.rsn,all.mo.ty.rsn,all.ty.rsn)
+all.cat <- cr.gr.list(all.mo.ly.cat,all.ly.cat,all.mo.ty.cat,all.ty.cat,b=2)
+
+########################################
 #Top Ten Lists
 ########################################
 top.ten <- data.table(loc=scrap.2$Loc., 
@@ -292,37 +308,31 @@ top.ten <- data.table(loc=scrap.2$Loc.,
                       it.desc=scrap.2$Description)
 
 
-top.lists <- function(year,month,location=NULL,gr.area=NULL){
+top.lists <- function(yr,mo,location=NULL,gr.area=NULL){
   top.list <- list()
   if(!is.null(location)){
     for(i in 1:length(gr.area)){
-      top.ten$tot.scrap <- top.ten[loc == location & year == year & month == month & grw == gr.area[i], 
+      top.ten$tot.scrap <- top.ten[loc == location & year == yr & month == mo & grw == gr.area[i], 
                                    list(EQUs=sum(as.numeric(equ)))]
       
-      tp.ten <- top.ten[loc == location & year == year & month == month & grw == gr.area[i], 
-                        list(Description=it.desc,
-                             Reason=reason,
-                             Qty=qty,
-                             EQUs=equ,
-                             Cost=cost,
-                             per.tot=equ/tot.scrap), 
-                        keyby = item]
+      tp.ten <- top.ten[loc == location & year == yr & month == mo & grw == gr.area[i], 
+                        list(Qty=sum(qty),
+                             EQUs=sum(equ),
+                             Cost=sum(cost),perc.tot=sum(equ)/mean(tot.scrap)), 
+                        keyby = c("item","it.desc","reason")]
       
       top.list[[i]] <- tp.ten[order(-EQUs),][1:10]
     }
   }
   if(is.null(location)){
-    top.ten$tot.scrap <- top.ten[year == year & month == month, 
+    top.ten$tot.scrap <- top.ten[year == yr & month == mo, 
                                  list(EQUs=sum(as.numeric(equ)))]
     
-    tp.ten <- top.ten[year == year & month == month, 
-                      list(Description=it.desc,
-                           Reason=reason,
-                           Qty=qty,
-                           EQUs=equ,
-                           Cost=cost,
-                           per.tot=equ/tot.scrap), 
-                      keyby = item]
+    tp.ten <- top.ten[year == yr & month == mo, 
+                      list(Qty=sum(qty),
+                           EQUs=sum(equ),
+                           Cost=sum(cost),perc.tot=sum(equ)/mean(tot.scrap)),
+                      keyby = c("item","it.desc","reason")]
     
     top.list[[1]] <- tp.ten[order(-EQUs),][1:10]
   }
@@ -333,6 +343,7 @@ or.top <- top.lists(yr,mo,160000,gr.or)
 ca.top <- top.lists(yr,mo,170000,gr.or)
 ga.top <- top.lists(yr,mo,550000,gr.ga)
 
+all.top <- top.lists(yr,mo)
 ######################################
 #Write csvs to file
 ######################################
@@ -366,25 +377,24 @@ while(i < length(files) + 1){
 }
 
 #make summaries
-sum.top.ten <- function(location,year,month){
-  top.ten$tot.scrap <- top.ten[loc == location & year == year & month == month, 
+sum.top.ten <- function(yr,mo,location){
+  options(scipen=999)
+  top.ten$tot.scrap <- top.ten[loc == location & year == yr & month == mo, 
                                list(EQUs=sum(as.numeric(equ)))]
-  tp.ten <- top.ten[loc == location & year == year & month == month, 
-                    list(Description=it.desc,
-                         Reason=reason,
-                         Qty=qty,
-                         EQUs=equ,
-                         Cost=cost,
-                         per.tot=equ/tot.scrap), 
-                    keyby = item]
+  tp.ten <- top.ten[loc == location & year == yr & month == mo, 
+                    list(Qty=sum(qty),
+                         EQUs=sum(equ),
+                         Cost=sum(cost),perc.tot=sum(equ)/mean(tot.scrap)),
+                    keyby = c("item","it.desc","reason")]
+  
   top.list <- list()
   top.list[[1]] <- tp.ten[order(-EQUs),][1:10]
   return(top.list)
 }
 
-or.tp.sum <- sum.top.ten(160000,year,mo)
-ca.tp.sum <- sum.top.ten(170000,year,mo)
-ga.tp.sum <- sum.top.ten(550000,year,mo)
+or.tp.sum <- sum.top.ten(yr,mo,160000)
+ca.tp.sum <- sum.top.ten(yr,mo,170000)
+ga.tp.sum <- sum.top.ten(yr,mo,550000)
 
 summ <- function(df,location=NULL){
   month <- as.numeric(format(Sys.Date(),"%m"))
@@ -476,3 +486,7 @@ while(i < length(files) + 1){
   write.csv(files[[i]],file=file.path)
   i <- i + 1
 }
+
+write.csv(all.rsn, "C:/Users/kadavison/Desktop/Reports/Mim_Recreations/Scrappage/csv_files/all_rsn.csv")
+write.csv(all.cat, "C:/Users/kadavison/Desktop/Reports/Mim_Recreations/Scrappage/csv_files/all_cat.csv")
+write.csv(all.top, "C:/Users/kadavison/Desktop/Reports/Mim_Recreations/Scrappage/csv_files/all_top.csv")
